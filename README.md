@@ -2,29 +2,30 @@
   <img src="RDFComp_logo.png" alt="RDFComp logo" width="400"/>
 </div>
 
-A command-line tool for computing per-atom radial distribution functions (RDFs) from molecular dynamics trajectories in XYZ format, powered by [OVITO](https://www.ovito.org/).
+A command-line tool for computing radial distribution functions (RDFs) from molecular dynamics trajectories in XYZ format, powered by [OVITO](https://www.ovito.org/).
 
 ---
 
-📄 Author: **Ouail Zakary**  
-- 📧 Email: [Ouail.Zakary@oulu.fi](mailto:Ouail.Zakary@oulu.fi)  
-- 🔗 ORCID: [0000-0002-7793-3306](https://orcid.org/0000-0002-7793-3306)  
-- 🌐 Website: [Personal Webpage](https://cc.oulu.fi/~nmrwww/members/Ouail_Zakary.html)  
+📄 Author: **Ouail Zakary**
+- 📧 Email: [Ouail.Zakary@oulu.fi](mailto:Ouail.Zakary@oulu.fi)
+- 🔗 ORCID: [0000-0002-7793-3306](https://orcid.org/0000-0002-7793-3306)
+- 🌐 Website: [Personal Webpage](https://cc.oulu.fi/~nmrwww/members/Ouail_Zakary.html)
 - 📁 Portfolio: [GitHub Portfolio](https://ozakary.github.io/)
 
 ---
 
-Given a set of **source** atoms (e.g. all Xe atoms, or a specific subset by index), the script computes the RDF between each source atom and a set of **target** atoms (defaulting to all other atoms in the system). Each source atom produces an independent g(r) curve, all written to a single data file and plotted on a single figure.
+Two computation modes are available. In **per-atom mode** (default), each source atom produces its own independent g(r) curve — useful for trace species such as a few Xe atoms in a solvent. In **bulk mode** (`--bulk`), all source atoms are used simultaneously to produce a single population-averaged g(r) — the correct choice for bulk same-element RDFs (e.g. Ru-Ru across 72 Ru atoms) or full cross-element averages (e.g. Ru-P).
 
 ## Features
 
 - Works with any element — not limited to noble gases or any specific chemistry
-- Handles single or multiple source atoms; each gets its own labeled g(r) curve
-- Per-atom isolation: when multiple source atoms of the same element are present, other source atoms are masked so they do not contribute to each atom's individual RDF
-- Same-element RDFs (e.g. Ru-Ru, P-P) supported by passing the same symbol to both `--source` and `--target`
+- **Per-atom mode**: each source atom gets its own labeled g(r) curve; other source atoms are masked so they do not contribute to each individual RDF
+- **Bulk mode** (`--bulk`): single population-averaged g(r) computed in one pipeline pass — orders of magnitude faster for large numbers of source atoms
+- Same-element RDFs (e.g. Ru-Ru, P-P) supported in both modes
 - Frame striding for fast analysis of long trajectories
+- Restrict computation to a specific subset of source atoms by global index
 - Validated input with clear error messages (unknown elements, invalid indices)
-- Progress bar per source atom showing frame-level progress
+- Progress bar showing frame-level progress
 - Outputs a plain-text data file and a publication-ready PNG plot
 
 ## Requirements
@@ -86,17 +87,23 @@ python rdf_compute.py TRAJECTORY --source ELEMENT [options]
 | `--prefix STR` | `rdf` | Filename stem; produces `<prefix>_data.dat` and `<prefix>_plot.png` |
 | `--dpi N` | 150 | Plot resolution in DPI |
 
+**Mode**
+
+| Argument | Default | Description |
+|---|---|---|
+| `--bulk` | off | Compute a single population-averaged RDF using all source atoms simultaneously. Without this flag, one curve is computed per source atom (per-atom mode) |
+
 ### Output files
 
 `<prefix>_data.dat` — space-delimited text file with columns:
 
 ```
-# r(Angstrom)  Xe1  Xe2  ...  Xe10
+# r(Angstrom)  label1  label2  ...
 0.006000 0.000000 0.000000 ...
 ...
 ```
 
-`<prefix>_plot.png` — all g(r) curves on a single figure, one curve per source atom.
+`<prefix>_plot.png` — all g(r) curves on a single figure.
 
 ## Examples
 
@@ -106,7 +113,7 @@ python rdf_compute.py TRAJECTORY --source ELEMENT [options]
 python rdf_compute.py traj.xyz --source Xe --outdir results/xe
 ```
 
-**Multiple Xe atoms vs. all other atoms (per-atom RDFs)**
+**Multiple Xe atoms vs. all other atoms — per-atom RDFs**
 
 ```bash
 python rdf_compute.py traj.xyz --source Xe \
@@ -128,11 +135,18 @@ python rdf_compute.py traj.xyz --source Xe --source-indices 0 4 7 \
     --outdir results/xe_selected
 ```
 
-**Different element — Ru vs. P in a RuP system**
+**Ru vs. P — per-atom RDFs**
 
 ```bash
 python rdf_compute.py traj.xyz --source Ru --target P \
     --outdir results/ru_p --prefix ru_p --cutoff 8.0
+```
+
+**Ru vs. P — bulk population-averaged RDF**
+
+```bash
+python rdf_compute.py traj.xyz --source Ru --target P --bulk \
+    --outdir results/ru_p_bulk --prefix ru_p_bulk --cutoff 8.0
 ```
 
 **Kr in a clathrate hydrate**
@@ -144,25 +158,37 @@ python rdf_compute.py traj.xyz --source Kr --target O H \
 
 **Same-element RDFs (e.g. Ru-Ru, P-P)**
 
-Pass the same symbol to both `--source` and `--target`. The default target (all other elements) never includes the source element itself, so this must be requested explicitly.
+Pass the same symbol to both `--source` and `--target`. The default target never includes the source element, so this must be requested explicitly. Use `--bulk` when you want a single averaged curve across all atoms of that element (the usual case for bulk systems).
 
 ```bash
-# Ru-Ru
-python rdf_compute.py traj.xyz --source Ru --target Ru \
-    --outdir results/ru_ru --prefix ru_ru
+# Ru-Ru bulk (single curve, all 72 Ru atoms — fast)
+python rdf_compute.py traj.xyz --source Ru --target Ru --bulk \
+    --outdir results/ru_ru --prefix ru_ru --cutoff 3.75
 
-# P-P
-python rdf_compute.py traj.xyz --source P --target P \
+# P-P bulk
+python rdf_compute.py traj.xyz --source P --target P --bulk \
     --outdir results/p_p --prefix p_p
 
-# Xe-Xe (multiple Xe atoms — one shared curve, population-averaged)
+# Xe-Xe per-atom (one curve per Xe atom — useful for inequivalent sites)
 python rdf_compute.py traj.xyz --source Xe --target Xe \
     --outdir results/xe_xe --prefix xe_xe
 ```
 
+## Choosing between per-atom and bulk mode
+
+| Situation | Recommended mode |
+|---|---|
+| Few trace atoms in a solvent (1–10 Xe in water) | per-atom (default) |
+| Many equivalent atoms in a bulk system (72 Ru) | `--bulk` |
+| Checking whether all source atoms are equivalent | per-atom, compare curves |
+| Same-element RDF in a crystal or liquid | `--bulk` |
+| Cross-element RDF averaged over all pairs | `--bulk` |
+
 ## Performance notes
 
 **Stride** is the most effective lever for long trajectories. RDF frames are highly correlated in MD, so `--stride 10` on a 10 000-frame run gives 1000 effectively independent frames at 10x the speed with no meaningful loss of accuracy.
+
+**Bulk mode** processes all source atoms in a single pipeline pass regardless of how many there are, so it is always faster than per-atom mode when you only need the population average.
 
 **Large systems (10 000+ atoms):** converting the trajectory from XYZ to LAMMPS binary dump format before analysis reduces I/O time by 5-10x:
 
@@ -178,12 +204,8 @@ export_file(p, 'traj.dump', 'lammps/dump',
 python rdf_compute.py traj.dump --source Xe --cutoff 12.0 --bins 1000 --stride 10
 ```
 
-**Multiple source atoms** are processed sequentially. Each atom requires one full pass over the selected frames, so total runtime scales linearly with the number of source atoms.
+**Per-atom mode** processes source atoms sequentially. Runtime scales linearly with the number of source atoms, so use `--bulk` instead whenever individual curves are not needed.
 
 ## Notes on element names
 
-The `--source` and `--target` element symbols must match exactly how atom types are named in your XYZ file. If the script cannot find a requested element it exits immediately and prints the type names it detected in frame 0, so there is no ambiguity.
-
-## License
-
-MIT
+The `--source` and `--target` element symbols must match exactly how atom types are named in your XYZ file. If the script cannot find a requested element it exits immediately and prints the type names it detected in frame 0, so there is no ambiguity
