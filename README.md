@@ -1,5 +1,6 @@
-![Logo](./RDFComp_logo.png)
-# RDFComp
+<div align="center">
+  <img src="RDFComp_logo.png" alt="RDFComp logo" width="400"/>
+</div>
 
 A command-line tool for computing per-atom radial distribution functions (RDFs) from molecular dynamics trajectories in XYZ format, powered by [OVITO](https://www.ovito.org/).
 
